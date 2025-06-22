@@ -21,8 +21,6 @@ class Registry(Generic[FrameID_T]):
     maintaining a directed acyclic graph (DAG) of relationships.
 
     Made for use with 4x4 3D transformation matrices.
-
-    TODO: Support concurrency
     """
 
     def __init__(self, world_frame: FrameID_T):
@@ -44,7 +42,7 @@ class Registry(Generic[FrameID_T]):
         # For thread safety, implement as third readers-writers problem (no starvation).
         # Reference: https://en.wikipedia.org/wiki/Readers%E2%80%93writers_problem#Third_readers%E2%80%93writers_problem
         self._read_count = 0
-        
+
         self._resource_lock = Lock()
         self._counts_lock = Lock()
         self._service_queue = Lock()
@@ -60,6 +58,13 @@ class Registry(Generic[FrameID_T]):
         Returns:
             The transformation matrix from `from_frame` to `to_frame`.
         """
+        return self._concurrent_read(
+            lambda: self._get_transform_unsafe(from_frame, to_frame)
+        )
+
+    def _get_transform_unsafe(
+        self, from_frame: FrameID_T, to_frame: FrameID_T
+    ) -> np.ndarray:
         path = self._get_path(from_frame, to_frame)
 
         transformation = np.eye(4)
@@ -85,6 +90,13 @@ class Registry(Generic[FrameID_T]):
             to_frame: The destination frame.
             transform: The transformation matrix from `from_frame` to `to_frame`.
         """
+        self._concurrent_write(
+            lambda: self._add_transform_unsafe(from_frame, to_frame, transform)
+        )
+
+    def _add_transform_unsafe(
+        self, from_frame: FrameID_T, to_frame: FrameID_T, transform: np.ndarray
+    ):
         if from_frame in self._adjacencies and to_frame in self._adjacencies:
             raise InvaidTransformationError(
                 "Both frames already exist in the registry."
@@ -117,6 +129,22 @@ class Registry(Generic[FrameID_T]):
             to_frame: The destination frame (should be the parent of `from_frame`).
             transform: The new transformation matrix from `from_frame` to `to_frame`.
         """
+        self._concurrent_write(
+            lambda: self._update_unsafe(from_frame, to_frame, transform)
+        )
+
+    def _update_unsafe(
+        self, from_frame: FrameID_T, to_frame: FrameID_T, transform: np.ndarray
+    ):
+        """
+        Internal method to update the transformation between two frames.
+        This is used by the `update` method to ensure that the frames are already connected.
+
+        Args:
+            from_frame: The source frame whose transformation is being updated.
+            to_frame: The destination frame (should be the parent of `from_frame`).
+            transform: The new transformation matrix from `from_frame` to `to_frame`.
+        """
         if from_frame not in self._adjacencies:
             raise InvaidTransformationError(
                 f"Frame {from_frame} does not exist in the registry."
@@ -141,14 +169,14 @@ class Registry(Generic[FrameID_T]):
         """
         self._service_queue.acquire()
         self._counts_lock.acquire()
-        
+
         self._read_count += 1
         if self._read_count == 1:
             self._resource_lock.acquire()
-            
+
         self._service_queue.release()
         self._counts_lock.release()
-        
+
         try:
             return func()
         finally:
@@ -156,19 +184,19 @@ class Registry(Generic[FrameID_T]):
                 self._read_count -= 1
                 if self._read_count == 0:
                     self._resource_lock.release()
-                    
+
     def _concurrent_write(self, func: Callable[[], Ret_T]) -> Ret_T:
         """
         Wrapper to execute a synchronous, thread-unsafe function that writes to the registry.
         """
         with self._service_queue:
             self._resource_lock.acquire()
-        
+
         try:
             return func()
         finally:
             self._resource_lock.release()
-        
+
     def _update_paths(self, new_frame: FrameID_T):
         """
         Updates the paths in the registry after adding a new frame.
