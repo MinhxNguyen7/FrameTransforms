@@ -35,5 +35,9 @@ dev = [
     "isort >= 5.12",
 ]
 
+test = [
+    "pytest >= 8.4",
+]
+
 [project.urls]
 Homepage = "https://github.com/MinhxNguyen7/FrameTransforms/"
