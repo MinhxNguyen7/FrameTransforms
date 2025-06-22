@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "frame-transforms"
-version = "0.1.0"
+version = "0.1.1"
 readme = "README.md"
 
 description = "Automatically compute and apply coordinate frame transformations"
@@ -21,6 +21,19 @@ dependencies = [
     "scipy >= 1.15",
 ]
 
+
+[project.optional-dependencies]
+build = [
+    "hatchling",
+    "build >= 1.2.2",
+    "twine >= 6.1.0",
+]
+
+dev = [
+    "pytest >= 7.4",
+    "flake8 >= 7.3",
+    "isort >= 5.12",
+]
 
 [project.urls]
 Homepage = "https://github.com/MinhxNguyen7/FrameTransforms/"
