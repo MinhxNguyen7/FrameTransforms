@@ -1,10 +1,12 @@
-from typing import Generic, Hashable, TypeVar
+from typing import Any, Callable, Generic, Hashable, TypeVar
+from threading import Lock
 
 import numpy as np
 
 
 # Key to identify coordinate frames in the registry.
 FrameID_T = TypeVar("FrameID_T", bound=Hashable)
+Ret_T = TypeVar("Ret_T", bound=Any)
 
 
 class InvaidTransformationError(Exception):
@@ -38,6 +40,14 @@ class Registry(Generic[FrameID_T]):
         self._paths: dict[FrameID_T, dict[FrameID_T, list[FrameID_T]]] = {
             world_frame: {world_frame: [world_frame]}
         }
+
+        # For thread safety, implement as third readers-writers problem (no starvation).
+        # Reference: https://en.wikipedia.org/wiki/Readers%E2%80%93writers_problem#Third_readers%E2%80%93writers_problem
+        self._read_count = 0
+        
+        self._resource_lock = Lock()
+        self._counts_lock = Lock()
+        self._service_queue = Lock()
 
     def get_transform(self, from_frame: FrameID_T, to_frame: FrameID_T) -> np.ndarray:
         """
@@ -125,6 +135,40 @@ class Registry(Generic[FrameID_T]):
         self._adjacencies[from_frame][to_frame] = transform
         self._adjacencies[to_frame][from_frame] = np.linalg.inv(transform)
 
+    def _concurrent_read(self, func: Callable[[], Ret_T]) -> Ret_T:
+        """
+        Wrapper to execute a synchrnous, thread-unsafe function that reads from the registry.
+        """
+        self._service_queue.acquire()
+        self._counts_lock.acquire()
+        
+        self._read_count += 1
+        if self._read_count == 1:
+            self._resource_lock.acquire()
+            
+        self._service_queue.release()
+        self._counts_lock.release()
+        
+        try:
+            return func()
+        finally:
+            with self._counts_lock:
+                self._read_count -= 1
+                if self._read_count == 0:
+                    self._resource_lock.release()
+                    
+    def _concurrent_write(self, func: Callable[[], Ret_T]) -> Ret_T:
+        """
+        Wrapper to execute a synchronous, thread-unsafe function that writes to the registry.
+        """
+        with self._service_queue:
+            self._resource_lock.acquire()
+        
+        try:
+            return func()
+        finally:
+            self._resource_lock.release()
+        
     def _update_paths(self, new_frame: FrameID_T):
         """
         Updates the paths in the registry after adding a new frame.
