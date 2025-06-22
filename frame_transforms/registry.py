@@ -164,14 +164,9 @@ class Registry(Generic[FrameID_T]):
         Returns:
             A list of frames representing the path from `from_frame` to `to_frame`.
         """
-        if from_frame not in self._adjacencies:
+        try:
+            return self._paths[from_frame][to_frame]
+        except KeyError:
             raise InvaidTransformationError(
-                f"Frame {from_frame} does not exist in the registry."
+                f"Either {from_frame} or {to_frame} does not exist in the registry."
             )
-
-        if to_frame not in self._adjacencies:
-            raise InvaidTransformationError(
-                f"Frame {to_frame} does not exist in the registry."
-            )
-
-        return self._paths[from_frame][to_frame]
