@@ -30,7 +30,7 @@ def make_example_registry():
     return registry
 
 
-if __name__ == "__main__":
+def add_cycle_example():
     registry = make_example_registry()
 
     # Attempt to add a transformation that creates a cycle
@@ -41,7 +41,10 @@ if __name__ == "__main__":
             "Caught invalid transformation because there is already a path between CAMERA and WORLD."
         )
 
-    # Get a transitive transformation from world to camera
+
+def transitive_transformation_example():
+    registry = make_example_registry()
+
     expected = make_3d_transformation(
         np.array([1, 1, 0]), Rotation.from_euler("xyz", [0, 90, 0], degrees=True)
     )
@@ -49,3 +52,8 @@ if __name__ == "__main__":
     assert np.allclose(actual[:3], expected[:3]), "Position mismatch"
     assert np.allclose(actual[3:], expected[3:]), "Rotation mismatch"
     print("Transformation from WORLD to CAMERA is correct.")
+
+
+if __name__ == "__main__":
+    add_cycle_example()
+    transitive_transformation_example()
