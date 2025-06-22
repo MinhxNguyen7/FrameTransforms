@@ -65,6 +65,38 @@ def transitive_transformation_example():
     print("Transformation from WORLD to CAMERA is correct.")
 
 
+def update_transformation_example():
+    """
+    Demonstrates updating an existing transformation in the registry,
+    specifically, moving the base on which the camera sits.
+    """
+    registry = make_example_registry()
+
+    # Update the transformation from WORLD to BASE
+    new_transform = make_3d_transformation(
+        np.array([0, 2, 0]), Rotation.from_euler("xyz", [0, 0, 0], degrees=True)
+    )
+    registry.update(Frame.WORLD, Frame.BASE, new_transform)
+
+    # Attempt to add instead of update the transformation
+    try:
+        registry.add_transform(Frame.WORLD, Frame.BASE, new_transform)
+    except InvaidTransformationError:
+        print(
+            "Caught invalid transformation because both frames already exist in the registry."
+        )
+
+    # Check the updated transformation
+    expected = make_3d_transformation(
+        np.array([0, 2, 1]), Rotation.from_euler("xyz", [0, 90, 0], degrees=True)
+    )
+    actual = registry.get_transform(Frame.WORLD, Frame.CAMERA)
+    assert np.allclose(actual[:3], expected[:3]), "Position mismatch after update"
+    assert np.allclose(actual[3:], expected[3:]), "Rotation mismatch after update"
+    print("Transformation from WORLD to CAMERA updated correctly.")
+
+
 if __name__ == "__main__":
     add_cycle_example()
     transitive_transformation_example()
+    update_transformation_example()
