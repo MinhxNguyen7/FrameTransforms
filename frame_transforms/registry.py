@@ -31,12 +31,12 @@ class Registry(Generic[FrameID_T]):
         self._adjacencies: dict[FrameID_T, dict[FrameID_T, np.ndarray]] = {
             world_frame: {}
         }
-        
-        self._parents: dict[FrameID_T, FrameID_T|None] = {world_frame: None}
+
+        self._parents: dict[FrameID_T, FrameID_T | None] = {world_frame: None}
 
         # Paths between frames for quickly retrieving the path between two frames.
         self._paths: dict[FrameID_T, dict[FrameID_T, list[FrameID_T]]] = {
-            world_frame: {}
+            world_frame: {world_frame: [world_frame]}
         }
 
     def get_transform(self, from_frame: FrameID_T, to_frame: FrameID_T) -> np.ndarray:
@@ -98,10 +98,10 @@ class Registry(Generic[FrameID_T]):
         """
         Updates the transforms of an existing frame.
         In effect, this moves all children of the given frame as well (e.g., moving a robot base).
-        
+
         Note that `from_frame` and `to_frame` must have been added together in the registry,
         i.e., they are attached to each other. However, they can be in any order.
-        
+
         Args:
             from_frame: The source frame whose transformation is being updated.
             to_frame: The destination frame (should be the parent of `from_frame`).
@@ -111,7 +111,7 @@ class Registry(Generic[FrameID_T]):
             raise InvaidTransformationError(
                 f"Frame {from_frame} does not exist in the registry."
             )
-        
+
         if to_frame not in self._adjacencies:
             raise InvaidTransformationError(
                 f"Frame {to_frame} does not exist in the registry."
@@ -121,7 +121,7 @@ class Registry(Generic[FrameID_T]):
             raise InvaidTransformationError(
                 f"Frame {to_frame} is not attached to {from_frame}."
             )
-            
+
         self._adjacencies[from_frame][to_frame] = transform
         self._adjacencies[to_frame][from_frame] = np.linalg.inv(transform)
 
@@ -141,10 +141,17 @@ class Registry(Generic[FrameID_T]):
         parent = next(iter(self._adjacencies[new_frame].keys()))
         self._parents[new_frame] = parent
 
+        # So that the dict doens't change size during iteration.
+        self._paths[new_frame][parent] = [new_frame, parent]
+        self._paths[parent][new_frame] = [parent, new_frame]
+
         # Connect the new frame to all existing frames and vice versa.
         for to_frame, path in self._paths[parent].items():
+            if to_frame == new_frame or to_frame == parent:
+                continue
+
             self._paths[new_frame][to_frame] = [new_frame] + path
-            self._paths[to_frame][new_frame] = path + [new_frame]
+            self._paths[to_frame][new_frame] = list(reversed(path)) + [new_frame]
 
     def _get_path(self, from_frame: FrameID_T, to_frame: FrameID_T) -> list[FrameID_T]:
         """
