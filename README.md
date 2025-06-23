@@ -1,8 +1,9 @@
 # Description
-FrameTransforms is a lightweight Python pacakge to simplify frame transformations. It supports:
+FrameTransforms is a lightweight, native Python pacakge to simplify frame transformations. It supports:
 
 1. Registration and update of relative coordinate frames.
 2. Automatic computation of transitive transformations.
+3. Multithreaded access.
 
 ## Application
 Consider a simple robot consisting of a mobile base and a camera mounted on a gimbal. 
