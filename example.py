@@ -26,15 +26,15 @@ def make_example_registry():
 
     # Add transformations between frames
 
-    world_to_base_transform = Transform(
+    world_to_base = Transform(
         np.array([0, 1, 0]), Rotation.from_euler("xyz", [0, 0, 0], degrees=True)
     )
-    registry.add_transform(Frame.WORLD, Frame.BASE, world_to_base_transform)
+    registry.add_transform(Frame.WORLD, Frame.BASE, world_to_base)
 
-    base_to_camera_transform = Transform(
+    base_to_camera = Transform(
         np.array([0, 0, 1]), Rotation.from_euler("xyz", [0, 90, 0], degrees=True)
     )
-    registry.add_transform(Frame.BASE, Frame.CAMERA, base_to_camera_transform)
+    registry.add_transform(Frame.BASE, Frame.CAMERA, base_to_camera)
 
     return registry
 
@@ -107,7 +107,30 @@ def update_transformation_example():
     print("Transformation from WORLD to CAMERA updated correctly.")
 
 
+def pose_example():
+    """
+    Demonstrates creating and using a Pose object.
+    """
+    registry = make_example_registry()
+
+    object_pose = Pose(
+        Transform(
+            np.array([1, 0, 0]),
+            Rotation.from_euler("xyz", [0, 0, 0], degrees=True),
+        ),
+        parent_frame=Frame.CAMERA,
+        registry=registry,
+    )
+
+    position_in_world = object_pose.get_position(Frame.WORLD)
+    print("Object position in WORLD frame:", position_in_world)
+
+    orientation_in_world = object_pose.get_orientation(Frame.WORLD)
+    print("Object orientation in WORLD frame:", orientation_in_world.as_matrix())
+
+
 if __name__ == "__main__":
     add_cycle_example()
     transitive_transformation_example()
     update_transformation_example()
+    pose_example()
