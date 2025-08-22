@@ -1,5 +1,10 @@
-*venv/
+# Generated 
 __pycache__/
 dist/
 
+# Environment
+*venv/
 .env
+
+# Output
+.coverage

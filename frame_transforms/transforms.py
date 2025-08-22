@@ -62,7 +62,10 @@ class Transform:
         """
         Applies this transformation to a given pose and returns a new pose.
         """
-        new_translation = self._translation + pose.transform.translation
+        # Correct transformation composition: rotate the pose's translation, then add this translation
+        new_translation = self._translation + self._rotation.apply(
+            pose.transform.translation
+        )
         new_rotation = self._rotation * pose.transform.rotation
 
         return Pose(
@@ -77,7 +80,10 @@ class Transform:
         or a 4x4 homogeneous transformation matrix.
         """
         if isinstance(other, Transform):
-            new_translation = self._translation + other.translation
+            # Correct transformation composition: rotate other's translation, then add this translation
+            new_translation = self._translation + self._rotation.apply(
+                other.translation
+            )
             new_rotation = self._rotation * other.rotation
             return Transform(new_translation, new_rotation)  # type: ignore[return-value]
 
@@ -89,7 +95,8 @@ class Transform:
                 case (4, 4):
                     return self.as_matrix() @ other
                 case (3,):
-                    return np.array(self._rotation.apply(other + self._translation))  # type: ignore[return-value]
+                    # Correct vector transformation: rotate first, then translate
+                    return np.array(self._rotation.apply(other) + self._translation)  # type: ignore[return-value]
                 case _:
                     raise ValueError(
                         "Invalid shape for transformation application. Expected (4, 4) or (3,)."
