@@ -47,3 +47,11 @@ test = [
 
 [project.urls]
 Homepage = "https://github.com/MinhxNguyen7/FrameTransforms/"
+
+[tool.pytest.ini_options]
+addopts = ["--cov=frame_transforms", "--cov-branch", "--cov-report=term-missing", "--cov-report=html"]
+testpaths = ["tests"]
+
+[tool.coverage.run]
+branch = true
+source = ["frame_transforms"]
