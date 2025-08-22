@@ -143,6 +143,32 @@ class Pose(Generic[FrameID_T]):
         new_transform = self.transform @ transform
         return Pose(new_transform, frame, self.registry)
 
+    def get_position(self, frame: FrameID_T | None) -> np.ndarray:
+        """
+        Gets the position of the pose in the specified frame.
+
+        If frame is None, the position is returned in the pose's parent frame.
+        """
+        if frame is None:
+            frame = self.parent_frame
+
+        return self.in_frame(
+            frame if frame is not None else self.parent_frame
+        ).transform.translation
+
+    def get_orientation(self, frame: FrameID_T | None) -> Rotation:
+        """
+        Gets the orientation of the pose in the specified frame.
+
+        If frame is None, the orientation is returned in the pose's parent frame.
+        """
+        if frame is None:
+            frame = self.parent_frame
+
+        return self.in_frame(
+            frame if frame is not None else self.parent_frame
+        ).transform.rotation
+
 
 class Registry(Generic[FrameID_T]):
     """
