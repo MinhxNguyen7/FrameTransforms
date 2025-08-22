@@ -17,13 +17,13 @@ registry.update(Frame.BASE, Frame.CAMERA, camera_pose)
 
 # Define the Pose
 object_pose = Pose(
-        Transform(
-            np.array([1, 0, 0]),
-            Rotation.from_euler("xyz", [0, 0, 0], degrees=True),
-        ),
-        parent_frame=Frame.CAMERA,
-        registry=registry,
-    )
+    Transform(
+        np.array([1, 0, 0]),
+        Rotation.from_euler("xyz", [0, 0, 0], degrees=True),
+    ),
+    parent_frame=Frame.CAMERA,
+    registry=registry,
+)
 
 # Get the position and orientation of the object in world frame
 position_in_world = object_pose.get_position(Frame.WORLD)
