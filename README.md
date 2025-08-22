@@ -31,3 +31,12 @@ orientation_in_world = object_pose.get_orientation(Frame.WORLD)
 ```
 
 # [Examples](https://github.com/MinhxNguyen7/FrameTransforms/blob/main/example.py)
+
+# Development Setup
+
+- Clone and `cd` into this repository.
+- Set up virtual environment.
+  - `python -m venv venv`
+  - `source venv/bin/activate` (Linux/Mac) or `venv\Scripts\activate` (Windows)
+- Install package with dev and test dependencies
+  - `pip install -e '.[dev,test]'`
