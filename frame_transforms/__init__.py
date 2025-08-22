@@ -1,4 +1,4 @@
-from .registry import (
+from .transforms import (
     Registry as Registry,
     InvaidTransformationError as InvaidTransformationError,
 )
