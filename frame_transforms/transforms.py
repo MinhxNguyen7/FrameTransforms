@@ -10,7 +10,7 @@ FrameID_T = TypeVar("FrameID_T", bound=Hashable)
 Ret_T = TypeVar("Ret_T", bound=Any)
 
 
-class InvalidTransformationError(Exception):
+class InvalidTransformError(Exception):
     pass
 
 
@@ -259,12 +259,10 @@ class Registry(Generic[FrameID_T]):
         transform: Transform | np.ndarray,
     ):
         if from_frame in self._adjacencies and to_frame in self._adjacencies:
-            raise InvalidTransformationError(
-                "Both frames already exist in the registry."
-            )
+            raise InvalidTransformError("Both frames already exist in the registry.")
 
         if from_frame not in self._adjacencies and to_frame not in self._adjacencies:
-            raise InvalidTransformationError(
+            raise InvalidTransformError(
                 "At least one of the frames must exist in the registry."
             )
 
@@ -320,17 +318,17 @@ class Registry(Generic[FrameID_T]):
             transform: The new transformation matrix from `from_frame` to `to_frame`.
         """
         if from_frame not in self._adjacencies:
-            raise InvalidTransformationError(
+            raise InvalidTransformError(
                 f"Frame {from_frame} does not exist in the registry."
             )
 
         if to_frame not in self._adjacencies:
-            raise InvalidTransformationError(
+            raise InvalidTransformError(
                 f"Frame {to_frame} does not exist in the registry."
             )
 
         if to_frame not in self._adjacencies[from_frame]:
-            raise InvalidTransformationError(
+            raise InvalidTransformError(
                 f"Frame {to_frame} is not attached to {from_frame}."
             )
 
@@ -418,6 +416,6 @@ class Registry(Generic[FrameID_T]):
         try:
             return self._paths[from_frame][to_frame]
         except KeyError:
-            raise InvalidTransformationError(
+            raise InvalidTransformError(
                 f"Either {from_frame} or {to_frame} does not exist in the registry."
             )

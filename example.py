@@ -7,7 +7,7 @@ from frame_transforms import (
     Pose,
     Transform,
     Registry,
-    InvalidTransformationError,
+    InvalidTransformError,
 )
 
 
@@ -41,23 +41,23 @@ def make_example_registry():
 
 def add_cycle_example():
     """
-    Demonstrates adding a transformation that would create a cycle in the registry,
-    raising an InvaidTransformationError.
+    Demonstrates adding a transform that would create a cycle in the registry,
+    raising an InvalidTransformError.
     """
     registry = make_example_registry()
 
-    # Attempt to add a transformation that creates a cycle
+    # Attempt to add a transform that creates a cycle
     try:
         registry.add_transform(Frame.CAMERA, Frame.WORLD, np.zeros(4))
-    except InvalidTransformationError:
+    except InvalidTransformError:
         print(
-            "Caught invalid transformation because there is already a path between CAMERA and WORLD."
+            "Caught invalid transform because there is already a path between CAMERA and WORLD."
         )
 
 
-def transitive_transformation_example():
+def transitive_transform_example():
     """
-    Demonstrates getting a transformation from one frame to another through an intermediate frame.
+    Demonstrates getting a transform from one frame to another through an intermediate frame.
     """
     registry = make_example_registry()
 
@@ -69,31 +69,31 @@ def transitive_transformation_example():
     assert np.allclose(
         actual.rotation.as_matrix(), expected.rotation.as_matrix()
     ), "Rotation mismatch"
-    print("Transformation from WORLD to CAMERA is correct.")
+    print("Transform from WORLD to CAMERA is correct.")
 
 
-def update_transformation_example():
+def update_transform_example():
     """
-    Demonstrates updating an existing transformation in the registry,
+    Demonstrates updating an existing transform in the registry,
     specifically, moving the base on which the camera sits.
     """
     registry = make_example_registry()
 
-    # Update the transformation from WORLD to BASE
+    # Update the transform from WORLD to BASE
     new_transform = Transform(
         np.array([0, 2, 0]), Rotation.from_euler("xyz", [0, 0, 0], degrees=True)
     )
     registry.update(Frame.WORLD, Frame.BASE, new_transform)
 
-    # Attempt to add instead of update the transformation
+    # Attempt to add instead of update the transform
     try:
         registry.add_transform(Frame.WORLD, Frame.BASE, new_transform)
-    except InvalidTransformationError:
+    except InvalidTransformError:
         print(
-            "Caught invalid transformation because both frames already exist in the registry."
+            "Caught invalid transform because both frames already exist in the registry."
         )
 
-    # Check the updated transformation
+    # Check the updated transform
     expected = Transform(
         np.array([0, 2, 1]), Rotation.from_euler("xyz", [0, 90, 0], degrees=True)
     )
@@ -104,7 +104,7 @@ def update_transformation_example():
     assert np.allclose(
         actual.rotation.as_matrix(), expected.rotation.as_matrix()
     ), "Rotation mismatch after update"
-    print("Transformation from WORLD to CAMERA updated correctly.")
+    print("Transform from WORLD to CAMERA updated correctly.")
 
 
 def pose_example():
@@ -131,6 +131,6 @@ def pose_example():
 
 if __name__ == "__main__":
     add_cycle_example()
-    transitive_transformation_example()
-    update_transformation_example()
+    transitive_transform_example()
+    update_transform_example()
     pose_example()
