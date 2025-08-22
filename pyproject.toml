@@ -30,7 +30,6 @@ build = [
 ]
 
 dev = [
-    "pytest >= 7.4",
     "flake8 >= 7.3",
     "isort >= 5.12",
     "scipy-stubs >= 1.15",
