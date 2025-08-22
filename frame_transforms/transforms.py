@@ -1,16 +1,147 @@
-from typing import Any, Callable, Generic, Hashable, TypeVar
 from threading import Lock
+from typing import Any, Callable, Generic, Hashable, TypeVar
+from dataclasses import dataclass
 
 import numpy as np
-
+from scipy.spatial.transform import Rotation
 
 # Key to identify coordinate frames in the registry.
 FrameID_T = TypeVar("FrameID_T", bound=Hashable)
 Ret_T = TypeVar("Ret_T", bound=Any)
 
 
-class InvaidTransformationError(Exception):
+class InvalidTransformationError(Exception):
     pass
+
+
+TransformTarget_t = TypeVar("TransformTarget_t", bound="Transform|Pose|np.ndarray")
+
+
+@dataclass(frozen=True)
+class Transform:
+    """
+    Similarly to posetree, this represents an action ("to transform")
+    to be applied to a pose.
+    """
+
+    _translation: np.ndarray
+    _rotation: Rotation
+
+    def __post_init__(self):
+        if self._translation.shape != (3,):
+            raise ValueError("Translation must be a 3D vector.")
+        if not isinstance(self._rotation, Rotation):
+            raise TypeError(
+                "Rotation must be an instance of scipy.spatial.transform.Rotation."
+            )
+
+    @property
+    def translation(self) -> np.ndarray:
+        """
+        Returns the translation vector.
+        """
+        return self._translation.copy()
+
+    @property
+    def rotation(self) -> Rotation:
+        """
+        Returns the rotation.
+        """
+        return self._rotation
+
+    def as_matrix(self) -> np.ndarray:
+        """
+        Converts the transformation to a 4x4 transformation matrix.
+        """
+        matrix = np.eye(4)
+        matrix[:3, :3] = self._rotation.as_matrix()
+        matrix[:3, 3] = self._translation
+        return matrix
+
+    def _apply_to_pose(self, pose: "Pose[FrameID_T]") -> "Pose[FrameID_T]":
+        """
+        Applies this transformation to a given pose and returns a new pose.
+        """
+        new_translation = self._translation + pose.transform.translation
+        new_rotation = self._rotation * pose.transform.rotation
+
+        return Pose(
+            Transform(new_translation, new_rotation),
+            pose.parent_frame,
+            pose.registry,
+        )
+
+    def __matmul__(self, other: TransformTarget_t) -> TransformTarget_t:
+        """
+        Applies the transformation to another Transform, Pose, 3D vector (point),
+        or a 4x4 homogeneous transformation matrix.
+        """
+        if isinstance(other, Transform):
+            new_translation = self._translation + other.translation
+            new_rotation = self._rotation * other.rotation
+            return Transform(new_translation, new_rotation)  # type: ignore[return-value]
+
+        elif isinstance(other, Pose):
+            return self._apply_to_pose(other)
+
+        elif isinstance(other, np.ndarray):
+            match other.shape:
+                case (4, 4):
+                    return self.as_matrix() @ other
+                case (3,):
+                    return np.array(self._rotation.apply(other + self._translation))  # type: ignore[return-value]
+                case _:
+                    raise ValueError(
+                        "Invalid shape for transformation application. Expected (4, 4) or (3,)."
+                    )
+        else:
+            raise TypeError(
+                "Unsupported type for transformation application. Expected Transform, Pose, or np.ndarray."
+            )
+
+
+@dataclass(frozen=True)
+class Pose(Generic[FrameID_T]):
+    """
+    Represents a 3D pose with position and orientation.
+    """
+
+    transform: Transform
+    parent_frame: FrameID_T
+    registry: "Registry[FrameID_T]"
+
+    def __post_init__(self):
+        if not isinstance(self.transform, Transform):
+            raise TypeError("Transform must be an instance of Transform.")
+        if not isinstance(self.registry, Registry):
+            raise TypeError("Registry must be an instance of Registry.")
+
+    def apply_transform(
+        self, transform: Transform, new_frame: FrameID_T | None
+    ) -> "Pose":
+        """
+        Applies a transformation to the pose and returns a new pose.
+
+        The new pose will be attached to the specified new frame, if provided.
+        If no new frame is specified, the pose remains in its current frame.
+        """
+        new_translation = self.transform.translation + transform.translation
+        new_rotation = self.transform.rotation * transform.rotation
+
+        return Pose(
+            Transform(new_translation, new_rotation),
+            new_frame or self.parent_frame,
+            self.registry,
+        )
+
+    def in_frame(self, frame: FrameID_T) -> "Pose":
+        """
+        Transforms the pose to the specified frame.
+        I.e., where is the pose in the specified frame?
+        """
+        transform = self.registry.get_transform(self.parent_frame, frame)
+        new_transform = self.transform @ transform
+        return Pose(new_transform, frame, self.registry)
 
 
 class Registry(Generic[FrameID_T]):
@@ -47,7 +178,7 @@ class Registry(Generic[FrameID_T]):
         self._counts_lock = Lock()
         self._service_queue = Lock()
 
-    def get_transform(self, from_frame: FrameID_T, to_frame: FrameID_T) -> np.ndarray:
+    def get_transform(self, from_frame: FrameID_T, to_frame: FrameID_T) -> Transform:
         """
         Gets the transformation matrix from one frame to another.
 
@@ -56,7 +187,7 @@ class Registry(Generic[FrameID_T]):
             to_frame: The destination frame.
 
         Returns:
-            The transformation matrix from `from_frame` to `to_frame`.
+            The transformation from `from_frame` to `to_frame`.
         """
         return self._concurrent_read(
             lambda: self._get_transform_unsafe(from_frame, to_frame)
@@ -64,21 +195,22 @@ class Registry(Generic[FrameID_T]):
 
     def _get_transform_unsafe(
         self, from_frame: FrameID_T, to_frame: FrameID_T
-    ) -> np.ndarray:
+    ) -> Transform:
         path = self._get_path(from_frame, to_frame)
 
-        transformation = np.eye(4)
+        trans = np.eye(4)
         for i in range(len(path) - 1):
             current_frame = path[i]
             next_frame = path[i + 1]
-            transformation = (
-                transformation @ self._adjacencies[current_frame][next_frame]
-            )
+            trans = trans @ self._adjacencies[current_frame][next_frame]
 
-        return transformation
+        return Transform(trans[:3, 3], Rotation.from_matrix(trans[:3, :3]))
 
     def add_transform(
-        self, from_frame: FrameID_T, to_frame: FrameID_T, transform: np.ndarray
+        self,
+        from_frame: FrameID_T,
+        to_frame: FrameID_T,
+        transform: Transform | np.ndarray,
     ):
         """
         Adds a transformation from one frame to another.
@@ -88,24 +220,32 @@ class Registry(Generic[FrameID_T]):
         Args:
             from_frame: The source frame.
             to_frame: The destination frame.
-            transform: The transformation matrix from `from_frame` to `to_frame`.
+            transform: The Transform or 4x4 transformation matrix from `from_frame` to `to_frame`.
         """
         self._concurrent_write(
             lambda: self._add_transform_unsafe(from_frame, to_frame, transform)
         )
 
     def _add_transform_unsafe(
-        self, from_frame: FrameID_T, to_frame: FrameID_T, transform: np.ndarray
+        self,
+        from_frame: FrameID_T,
+        to_frame: FrameID_T,
+        transform: Transform | np.ndarray,
     ):
         if from_frame in self._adjacencies and to_frame in self._adjacencies:
-            raise InvaidTransformationError(
+            raise InvalidTransformationError(
                 "Both frames already exist in the registry."
             )
 
         if from_frame not in self._adjacencies and to_frame not in self._adjacencies:
-            raise InvaidTransformationError(
+            raise InvalidTransformationError(
                 "At least one of the frames must exist in the registry."
             )
+
+        if isinstance(transform, Transform):
+            transform = transform.as_matrix()
+        elif not (isinstance(transform, np.ndarray) and transform.shape == (4, 4)):
+            raise ValueError("Transform must be a Transform or a 4x4 numpy array.")
 
         if from_frame not in self._adjacencies:
             self._adjacencies[from_frame] = {to_frame: transform}
@@ -116,7 +256,12 @@ class Registry(Generic[FrameID_T]):
             self._adjacencies[to_frame] = {from_frame: np.linalg.inv(transform)}
             self._update_paths(to_frame)
 
-    def update(self, from_frame: FrameID_T, to_frame: FrameID_T, transform: np.ndarray):
+    def update(
+        self,
+        from_frame: FrameID_T,
+        to_frame: FrameID_T,
+        transform: Transform | np.ndarray,
+    ):
         """
         Updates the transforms of an existing frame.
         In effect, this moves all children of the given frame as well (e.g., moving a robot base).
@@ -134,7 +279,10 @@ class Registry(Generic[FrameID_T]):
         )
 
     def _update_unsafe(
-        self, from_frame: FrameID_T, to_frame: FrameID_T, transform: np.ndarray
+        self,
+        from_frame: FrameID_T,
+        to_frame: FrameID_T,
+        transform: Transform | np.ndarray,
     ):
         """
         Internal method to update the transformation between two frames.
@@ -146,19 +294,24 @@ class Registry(Generic[FrameID_T]):
             transform: The new transformation matrix from `from_frame` to `to_frame`.
         """
         if from_frame not in self._adjacencies:
-            raise InvaidTransformationError(
+            raise InvalidTransformationError(
                 f"Frame {from_frame} does not exist in the registry."
             )
 
         if to_frame not in self._adjacencies:
-            raise InvaidTransformationError(
+            raise InvalidTransformationError(
                 f"Frame {to_frame} does not exist in the registry."
             )
 
         if to_frame not in self._adjacencies[from_frame]:
-            raise InvaidTransformationError(
+            raise InvalidTransformationError(
                 f"Frame {to_frame} is not attached to {from_frame}."
             )
+
+        if isinstance(transform, Transform):
+            transform = transform.as_matrix()
+        elif not (isinstance(transform, np.ndarray) and transform.shape == (4, 4)):
+            raise ValueError("Transform must be a Transform or a 4x4 numpy array.")
 
         self._adjacencies[from_frame][to_frame] = transform
         self._adjacencies[to_frame][from_frame] = np.linalg.inv(transform)
@@ -239,6 +392,6 @@ class Registry(Generic[FrameID_T]):
         try:
             return self._paths[from_frame][to_frame]
         except KeyError:
-            raise InvaidTransformationError(
+            raise InvalidTransformationError(
                 f"Either {from_frame} or {to_frame} does not exist in the registry."
             )
