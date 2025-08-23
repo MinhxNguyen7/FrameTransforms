@@ -80,7 +80,7 @@ class Transform:
         or a 4x4 homogeneous transformation matrix.
         """
         if isinstance(other, Transform):
-            # Correct transformation composition: rotate other's translation, then add this translation
+            # Rotate other's translation, then add this translation
             new_translation = self._translation + self._rotation.apply(
                 other.translation
             )
@@ -95,7 +95,7 @@ class Transform:
                 case (4, 4):
                     return self.as_matrix() @ other
                 case (3,):
-                    # Correct vector transformation: rotate first, then translate
+                    # Rotate first, then translate
                     return np.array(self._rotation.apply(other) + self._translation)  # type: ignore[return-value]
                 case _:
                     raise ValueError(
@@ -181,8 +181,8 @@ class Registry(Generic[FrameID_T]):
     """
     Registry of coordinate frames and corresponding transforms.
 
-    Automatically computes transitive tramsforms between frames if possible by
-    maintaining a directed acyclic graph (DAG) of relationships.
+    Automatically computes transitive transforms between frames if possible by
+    maintaining a tree of relationships.
 
     Made for use with 4x4 3D transformation matrices.
     """
