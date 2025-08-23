@@ -181,8 +181,8 @@ class Registry(Generic[FrameID_T]):
     """
     Registry of coordinate frames and corresponding transforms.
 
-    Automatically computes transitive tramsforms between frames if possible by
-    maintaining a directed acyclic graph (DAG) of relationships.
+    Automatically computes transitive transforms between frames if possible by
+    maintaining a tree of relationships.
 
     Made for use with 4x4 3D transformation matrices.
     """
