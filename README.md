@@ -58,3 +58,11 @@ Simply wrap the `Register` in a ROS node, subscribing to pose updates and publis
   - `source venv/bin/activate` (Linux/Mac) or `venv\Scripts\activate` (Windows)
 - Install package with dev and test dependencies
   - `pip install -e '.[dev,test]'`
+
+# Implementation Details
+
+- Transforms are stored as a tree starting from the world frame (provided at `Registry` initialization).
+- To optimize run-time performance, the paths between all pairs of frames are eagerly precomputed and stored when a frame is added.
+  - Therefore, the runtime complexity on request is proportional to the shortest path, instead of all frames in the case of a full graph search.
+- Transitive transforms themselves are only computed on-demand because an intermediate transform can change.
+  - This is preferred because poses often change more often than they are requested.
